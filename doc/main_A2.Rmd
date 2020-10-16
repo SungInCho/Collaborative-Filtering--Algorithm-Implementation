@@ -1,0 +1,63 @@
+---
+title: "Implement_A2"
+author: "Luyue Chen lc3363"
+date: "11/15/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+data <- read.csv("../data/ml-latest-small/ratings.csv")
+set.seed(0)
+test_idx <- sample(1:nrow(data), round(nrow(data)/5, 0))
+train_idx <- setdiff(1:nrow(data), test_idx)
+dat_train <- data[train_idx,]
+dat_test <- data[test_idx,]
+```
+
+```{r}
+source("../lib/A2_PMF.R")
+source("../lib/CV_A2.R")
+```
+
+```{r}
+f_list <- c(10)
+lp_list <- c(0.1,0.2)
+lq_list <- c(0.1,0.2) 
+params <- expand.grid(f_list, lp_list, lq_list)
+```
+
+```{r,message=FALSE,warning=FALSE}
+epochs=200
+lrate=0.001
+result_summary <- array(NA, dim = c(nrow(params), epochs/10, 4))  
+run_time <- system.time(for(i in 1:nrow(params)){
+    par <- paste("f = ", params[i,1], ", lambda_p = ", params[i,2],
+                 ", lambda_q = ", params[i,3])
+    cat(par, "\n")
+    current_result <- cv.function2(data=data,dat_train = dat_train, K = 5, f = params[i,1], lambda_p = params[i,2], lambda_q = params[i,3], epochs=epochs, lrate=lrate)
+    result_summary[,,i] <- matrix(unlist(current_result), ncol = epochs/10, byrow = T) 
+    print(result_summary)
+})
+save(result_summary, file = "../output/rmse_A2_AB.Rdata")
+```
+
+
+```{r}
+load("../output/rmse_A2_AB.Rdata")
+rmse <- data.frame(rbind(t(result_summary[1,,]), t(result_summary[2,,])), train_test = rep(c("Train", "Test"), each = 4), par = rep(paste("f = ", params[,1], ", lambda_p = ", params[,2], ", lambda_q = ", params[,3]), times = 2)) %>% gather("epoch", "RMSE", -train_test, -par)
+rmse$epoch <- as.numeric(gsub("X", "", rmse$epoch))
+rmse %>% ggplot(aes(x = epoch, y = RMSE, col = train_test)) + geom_point() + facet_grid(~par)
+ggsave("../output/A2_AB.png")
+```
+
+```{r, eval= FALSE}
+result_A2 <- gradesc2(f = 8, lambda_p = 0.1, lambda_q=0.1, lrate = 0.001, epochs = 240,data = data, train = dat_train, test = dat_test)
+save(result_A2, file = "../output/mat_fac_A2.RData")
+```

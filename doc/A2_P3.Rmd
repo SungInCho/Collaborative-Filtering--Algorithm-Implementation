@@ -1,0 +1,84 @@
+---
+title: "A2_P3"
+author: "Xiaotong Li"
+date: "11/18/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+```
+
+# Load the results from A2
+
+```{r}
+source("../lib/P3.r")
+load("../output/mat_fac_A2.RData")
+```
+
+# Performed SVD with Kernel Ridge Regression on the results
+
+```{r}
+rating = t(result_A2$p) %*% result_A2$q
+X = X_mat(result_A2$q)
+n = nrow(X)
+lamb = 0.5
+I = diag(n)
+```
+
+
+```{r}
+# SVD_KRR
+svd_krr_pred_rating <- K(X,X) %*% solve((K(X,X)+lamb*I)) %*% t(rating)
+# (mxm)
+
+#define a function to extract the corresponding predictedrating for the test set.
+extract_pred_rating <- function(test_set, pred){
+  pred_rating <- pred[as.character(test_set[2]), as.character(test_set[1])]
+  return(pred_rating)
+}
+#extract predicted rating
+pred_test_rating <- apply(data_test, 1, extract_pred_rating, svd_krr_pred_rating)
+# number of rows of data test 
+
+save(svd_krr_pred_rating, file = "../output/A2_P3.RData")
+```
+
+# Evaluate the RMSE A2
+
+```{r}
+library(ggplot2)
+
+RMSE <- data.frame(epochs = seq(10, 240, 10), Training_MSE = result_A2$train_RMSE, Test_MSE = result_A2$test_RMSE) %>% gather(key = train_or_test, value = RMSE, -epochs)
+
+RMSE %>% ggplot(aes(x = epochs, y = RMSE,col = train_or_test)) + geom_point() + scale_x_discrete(limits = seq(10, 240, 10)) + xlim(c(0, 240))
+```
+
+# Evaluate A2+P3
+
+```{r}
+source("../lib/Matrix_Factorization.R")
+```
+```{r}
+size(rating)
+size(t(svd_krr_pred_rating))
+```
+
+```{r}
+RMSE_mat <- function(T, Y){
+ E    = T-Y;
+ SQE  = E^2
+ MSE  = mean(SQE)
+ RMSE = sqrt(MSE)
+ return(RMSE)}
+```
+
+```{r}
+RMSE_mat(T = rating, Y =t(svd_krr_pred_rating) )
+```
+

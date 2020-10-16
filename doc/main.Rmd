@@ -1,0 +1,223 @@
+---
+title: "main"
+author: "Group 3"
+date: "11/20/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Step 1 Load Data and Train-test Split
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+data <- read.csv("../data/ml-latest-small/ratings.csv")
+set.seed(0)
+test_idx <- sample(1:nrow(data), round(nrow(data)/5, 0))
+train_idx <- setdiff(1:nrow(data), test_idx)
+dat_train <- data[train_idx,]
+dat_test <- data[test_idx,]
+```
+
+### Step 2 Matrix Factorization
+
+#### Step 2.1 A1 + P3 Algorithm
+
+#### Step 2.1.1 Parameter tuning and visualization for A1
+
+```{r}
+source("../lib/cross_validation.R")
+f_list <- seq(10, 20, 10)
+l_list <- seq(-2, -1, 1)
+f_l <- expand.grid(f_list, l_list)
+```
+
+Uncomment here to run the parameter tuning for A1.
+```{r, eval=FALSE}
+# result_summary <- array(NA, dim = c(nrow(f_l), 10, 4)) 
+# run_time <- system.time(for(i in 1:nrow(f_l)){
+#     par <- paste("f = ", f_l[i,1], ", lambda = ", 10^f_l[i,2])
+#     cat(par, "\n")
+#     current_result <- cv.function(data, K = 5, f = f_l[i,1], lambda = 10^f_l[i,2])
+#     result_summary[,,i] <- matrix(unlist(current_result), ncol = 10, byrow = T) 
+#     print(result_summary)
+#   
+# })
+# save(result_summary, file = "../output/rmse.Rdata")
+```
+
+```{r}
+load("../output/rmse.Rdata")
+rmse <- data.frame(rbind(t(result_summary[1,,]), t(result_summary[2,,])), train_test = rep(c("Train", "Test"), each = 4), par = rep(paste("f = ", f_l[,1], ", lambda = ", 10^f_l[,2]), times = 2)) %>% gather("epoch", "RMSE", -train_test, -par)
+rmse$epoch <- as.numeric(gsub("X", "", rmse$epoch))
+rmse %>% ggplot(aes(x = epoch, y = RMSE, col = train_test)) + geom_point() + facet_grid(~par)
+```
+
+#### Step 2.1.2 Parameter tuning result of A1: f=10, lambda= 0.1
+
+Uncomment here to perform training.
+```{r, eval= FALSE}
+# source("../lib/Matrix_Factorization.r")
+# result <- gradesc(f = 10, lambda = 0.1,lrate = 0.01, max.iter = 240, stopping.deriv = 0.01,
+#                    data = data, train = dat_train, test = dat_test)
+# save(result, file = "../output/mat_fac.RData")
+```
+
+#### Step 2.1.3 Post-processing by P3
+
+Uncomment to perform Post-Processing.
+```{r}
+source("../lib/P3.r")
+load("../output/mat_fac.RData")
+rating = t(result$p) %*% result$q
+X = X_mat(result$q)
+n = nrow(X)
+lamb = 0.5
+I = diag(n)
+```
+
+```{r}
+# # SVD_KRR
+# svd_krr_pred_rating <- K(X,X) %*% solve((K(X,X)+lamb*I)) %*% t(rating)
+# # (mxm)
+# #define a function to extract the corresponding predictedrating for the test set.
+# extract_pred_rating <- function(test_set, pred){
+#   pred_rating <- pred[as.character(test_set[2]), as.character(test_set[1])]
+#   return(pred_rating)
+# }
+# #extract predicted rating
+# pred_test_rating <- apply(dat_test, 1, extract_pred_rating, svd_krr_pred_rating)
+# # number of rows of data test 
+# save(svd_krr_pred_rating, file = "../output/A1_P3.RData")
+```
+
+#### Step 2.1.4 Evaluation 
+
+```{r}
+load("../output/A1_P3.RData")
+load("../output/mat_fac.RData")
+library(ggplot2)
+RMSE <- data.frame(epochs = seq(10, 240, 10), Training_MSE = result$train_RMSE, Test_MSE = result$test_RMSE) %>% gather(key = train_or_test, value = RMSE, -epochs)
+RMSE %>% ggplot(aes(x = epochs, y = RMSE,col = train_or_test)) + geom_point() + scale_x_discrete(limits = seq(10, 240, 10)) + xlim(c(0, 240))
+```
+
+```{r}
+RMSE_mat <- function(T, Y){
+ E    = T-Y;
+ SQE  = E^2
+ MSE  = mean(SQE)
+ RMSE = sqrt(MSE)
+ return(RMSE)}
+RMSE_mat(T = rating, Y =t(svd_krr_pred_rating) )
+```
+
+#### Step 2.2 A2 + P3 Algorithm
+
+#### Step 2.2.1 Parameter tuning and visualization for A2
+
+```{r}
+f_list <- c(8, 10)
+lp_list <- c(0.1,0.2)
+lq_list <- c(0.1,0.2) 
+params <- expand.grid(f_list, lp_list, lq_list)
+```
+
+Uncomment here to run the Parameter tunning for A2.
+```{r,message=FALSE,warning=FALSE}
+# epochs=100
+# lrate=0.001
+# result_summary <- array(NA, dim = c(nrow(params), epochs/10, 4))  
+# run_time <- system.time(for(i in 1:nrow(params)){
+#     par <- paste("f = ", params[i,1], ", lambda_p = ", params[i,2],
+#                  ", lambda_q = ", params[i,3])
+#     cat(par, "\n")
+#     current_result <- cv.function2(data=data,dat_train = dat_train, K = 5, f = params[i,1], lambda_p = params[i,2], lambda_q = params[i,3], epochs=epochs, lrate=lrate)
+#     result_summary[,,i] <- matrix(unlist(current_result), ncol = epochs/10, byrow = T) 
+#     print(result_summary)
+# })
+# save(result_summary, file = "../output/rmse_A2_AB.Rdata")
+```
+
+```{r}
+load("../output/rmse_A2_AB.Rdata")
+rmse <- data.frame(rbind(t(result_summary[1,,]), t(result_summary[2,,])), train_test = rep(c("Train", "Test"), each = 4), par = rep(paste("f = ", params[,1], ", lambda_p = ", params[,2], ", lambda_q = ", params[,3]), times = 2)) %>% gather("epoch", "RMSE", -train_test, -par)
+rmse$epoch <- as.numeric(gsub("X", "", rmse$epoch))
+rmse %>% ggplot(aes(x = epoch, y = RMSE, col = train_test)) + geom_point() + facet_grid(~par)
+ggsave("../output/A2_AB.png")
+```
+
+#### Step 2.2.2 Parameter tuning result of A2: f=8, lambda_p=0.1, lambda_q=0.1
+
+Uncomment to perform training. 
+```{r, eval= FALSE}
+# result_A2 <- gradesc2(f = 8, lambda_p = 0.1, lambda_q=0.1, lrate = 0.0005, epochs = 240,data = data, train = dat_train, test = dat_test)
+# save(result_A2, file = "../output/mat_fac_A2.RData")
+```
+
+#### Step 2.2.3 Post-processing by P3
+
+```{r}
+source("../lib/P3.r")
+load("../output/mat_fac_A2.RData")
+```
+Uncomment to perfrom Postprocessing.
+```{r}
+rating = t(result_A2$p) %*% result_A2$q
+X = X_mat(result_A2$q)
+n = nrow(X)
+lamb = 0.5
+I = diag(n)
+```
+
+```{r}
+# # SVD_KRR
+# svd_krr_pred_rating <- K(X,X) %*% solve((K(X,X)+lamb*I)) %*% t(rating)
+# # (mxm)
+# #define a function to extract the corresponding predictedrating for the test set.
+# extract_pred_rating <- function(test_set, pred){
+#   pred_rating <- pred[as.character(test_set[2]), as.character(test_set[1])]
+#   return(pred_rating)
+# }
+# #extract predicted rating
+# pred_test_rating <- apply(dat_test, 1, extract_pred_rating, svd_krr_pred_rating)
+# # number of rows of data test 
+# save(svd_krr_pred_rating, file = "../output/A2_P3.RData")
+```
+
+#### Step 2.2.4 Evaluation
+
+##### Evaluate A2 by RMSE
+
+```{r}
+library(ggplot2)
+RMSE <- data.frame(epochs = seq(10, 240, 10), Training_MSE = result_A2$train_RMSE, Test_MSE = result_A2$test_RMSE) %>% gather(key = train_or_test, value = RMSE, -epochs)
+RMSE %>% ggplot(aes(x = epochs, y = RMSE,col = train_or_test)) + geom_point() + scale_x_discrete(limits = seq(10, 240, 10)) + xlim(c(0, 240))
+```
+
+##### Evaluate A2+P3
+
+```{r}
+source("../lib/Matrix_Factorization.R")
+```
+```{r}
+size(rating)
+size(t(svd_krr_pred_rating))
+```
+
+```{r}
+RMSE_mat <- function(T, Y){
+ E    = T-Y;
+ SQE  = E^2
+ MSE  = mean(SQE)
+ RMSE = sqrt(MSE)
+ return(RMSE)}
+```
+
+```{r}
+load("../output/A2_P3.RData")
+RMSE_mat(T = rating, Y =t(svd_krr_pred_rating) )
+```
